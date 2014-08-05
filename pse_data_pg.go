@@ -40,30 +40,60 @@ func (info ConnectionInfo) connectStringGeneral(dbname string) string {
 	)
 }
 
-type PseDb struct {
-	db *sql.DB
+type PseDb interface {
+	DbStore() *sql.DB
+	Close() error
 }
 
-func (pseDb PseDb) Close() {
-	pseDb.db.Close()
+type pseDbS struct {
+	info ConnectionInfo
+	db   *sql.DB
 }
 
-func CreateDb(info ConnectionInfo) (pseDb PseDb, err error) {
+func (pseDb pseDbS) Close() error {
+	return pseDb.db.Close()
+}
+
+func (pseDb *pseDbS) createTables() (err error) {
+	db, err := sql.Open("postgres", pseDb.info.ConnectString())
+	pseDb.db = db
+	if err != nil {
+		return err
+	}
+	_, err = pseDb.db.Exec(
+		`CREATE TABLE day_trades (` +
+			`symbol varchar(5) NOT NULL, ` +
+			`date   date NOT NULL, ` +
+			`open   numeric(14, 5) NOT NULL, ` +
+			`high   numeric(14, 5) NOT NULL, ` +
+			`low    numeric(14, 5) NOT NULL, ` +
+			`close  numeric(14, 5) NOT NULL, ` +
+			`vol    int NOT NULL)`,
+	)
+	return err
+}
+
+func (pseDb *pseDbS) DbStore() *sql.DB {
+	return pseDb.db
+}
+
+func CreateDb(info ConnectionInfo) (PseDb, error) {
 	db, err := sql.Open("postgres", info.ConnectStringTemplateDb())
-	pseDb = PseDb{}
+	defer db.Close()
+	pseDb := new(pseDbS)
+	pseDb.info = info
 
 	if err != nil {
 		return pseDb, err
 	}
 
-	_, err = db.Query(`CREATE DATABASE ` + info.dbname)
+	_, err = db.Exec(`CREATE DATABASE ` + info.dbname)
 
 	if err != nil {
-		db.Close()
 		return pseDb, err
 	}
-	db.Close()
-	return pseDb, nil
+	err = pseDb.createTables()
+	return pseDb, err
 }
 
 // func ImportCSVHistorical(file) {
