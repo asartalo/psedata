@@ -1,10 +1,11 @@
-package pse_data_pg
+package psedata
 
 import (
 	"database/sql"
 	_ "github.com/asartalo/pq"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
+	"time"
 )
 
 var sharedConnInfo = ConnectionInfo{
@@ -13,6 +14,31 @@ var sharedConnInfo = ConnectionInfo{
 	password: "pse_test",
 	host:     "localhost",
 	port:     5432,
+}
+
+func TestDataRow(t *testing.T) {
+	Convey("Given a DataRow", t, func() {
+		dFmt := "Jan 2, 2006"
+		date, _ := time.Parse(dFmt, "Apr 20, 1980")
+		dataRow := DataRow{
+			symbol: "AAA",
+			date:   date,
+			open:   10.0,
+			high:   12.0,
+			low:    9.1,
+			close:  11.0,
+			vol:    100,
+		}
+
+		Convey("When exported as string", func() {
+			str := dataRow.String()
+
+			Convey("It should be properly formatted", func() {
+				expected := "AAA,1980-04-20,10.000000,12.000000,9.100000,11.000000,100"
+				So(str, ShouldEqual, expected)
+			})
+		})
+	})
 }
 
 func TestConnectionInfo(t *testing.T) {
@@ -85,10 +111,53 @@ func TestPseDb(t *testing.T) {
 	})
 
 	Convey("Given a db", t, func() {
-		CreateDb(sharedConnInfo)
-
+		dropTestDb(t)
+		pseDb, _ := CreateDb(sharedConnInfo)
+		Reset(func() {
+			pseDb.Close()
+		})
 		Convey("When a data is added", func() {
+			dFmt := "Jan 2, 2006"
+			date, _ := time.Parse(dFmt, "Apr 20, 1980")
+			input := DataRow{
+				symbol: "AAA",
+				date:   date,
+				open:   10.0,
+				high:   12.0,
+				low:    9.1,
+				close:  11.0,
+				vol:    100,
+			}
+			pseDb.NewData(input)
 
+			Convey("The data should be saved on db", func() {
+				d := pseDb.DbStore()
+				var symbol string
+				var date2 time.Time
+				var open, high, low, close float64
+				var vol int
+				err := d.QueryRow(
+					`SELECT symbol, date, open, high, low, close, vol FROM day_trades limit 1`,
+				).Scan(&symbol, &date2, &open, &high, &low, &close, &vol)
+				So(err, ShouldBeNil)
+				So(symbol, ShouldEqual, input.symbol)
+				So(date2.Format(dFmt), ShouldEqual, date.Format(dFmt))
+				So(open, ShouldEqual, 10.0)
+				So(high, ShouldEqual, 12.0)
+				So(low, ShouldEqual, 9.1)
+				So(close, ShouldEqual, 11.0)
+				So(vol, ShouldEqual, 100)
+			})
+
+			Convey("The data should be retrievable", func() {
+				result, err := pseDb.GetAllDataFor("AAA")
+				So(err, ShouldBeNil)
+				So(len(result), ShouldEqual, 1)
+				saved := result[0]
+				// For some reason, Dates are not equal when using ShouldEqual
+				So(saved.date.Equal(input.date), ShouldBeTrue)
+				So(saved.String(), ShouldEqual, input.String())
+			})
 		})
 	})
 }
