@@ -16,22 +16,60 @@ var sharedConnInfo = ConnectionInfo{
 	port:     5432,
 }
 
+type genericRows struct {
+	pos        int
+	collection []DataRow
+}
+
+func (rows *genericRows) Next() *DataRow {
+	last := (len(rows.collection) - 1)
+	defer func() {
+		rows.pos++
+	}()
+	if rows.pos > last {
+		return nil
+	}
+
+	return &rows.collection[rows.pos]
+
+}
+
+func (rows *genericRows) Append(data DataRow) {
+	rows.collection = append(rows.collection, data)
+}
+
+func getGenericDate() time.Time {
+	d, _ := time.Parse(dFmt, "Apr 20, 1980")
+	return d
+}
+
+var dFmt string = "Jan 2, 2006"
+var err error
+var date time.Time = getGenericDate()
+var rawData = struct {
+	symbol string
+	date   time.Time
+	open   float64
+	high   float64
+	low    float64
+	close  float64
+	vol    int
+}{
+	symbol: "AAA",
+	date:   date,
+	open:   10.0,
+	high:   12.0,
+	low:    9.1,
+	close:  11.0,
+	vol:    100,
+}
+var genericData = NewDataRowS(rawData)
+
 func TestDataRow(t *testing.T) {
 	Convey("Given a DataRow", t, func() {
-		dFmt := "Jan 2, 2006"
-		date, _ := time.Parse(dFmt, "Apr 20, 1980")
-		dataRow := DataRow{
-			symbol: "AAA",
-			date:   date,
-			open:   10.0,
-			high:   12.0,
-			low:    9.1,
-			close:  11.0,
-			vol:    100,
-		}
 
 		Convey("When exported as string", func() {
-			str := dataRow.String()
+			str := genericData.String()
 
 			Convey("It should be properly formatted", func() {
 				expected := "AAA,1980-04-20,10.000000,12.000000,9.100000,11.000000,100"
@@ -116,18 +154,9 @@ func TestPseDb(t *testing.T) {
 		Reset(func() {
 			pseDb.Close()
 		})
+
 		Convey("When a data is added", func() {
-			dFmt := "Jan 2, 2006"
-			date, _ := time.Parse(dFmt, "Apr 20, 1980")
-			input := DataRow{
-				symbol: "AAA",
-				date:   date,
-				open:   10.0,
-				high:   12.0,
-				low:    9.1,
-				close:  11.0,
-				vol:    100,
-			}
+			input := genericData
 			pseDb.NewData(input)
 
 			Convey("The data should be saved on db", func() {
@@ -157,6 +186,26 @@ func TestPseDb(t *testing.T) {
 				// For some reason, Dates are not equal when using ShouldEqual
 				So(saved.date.Equal(input.date), ShouldBeTrue)
 				So(saved.String(), ShouldEqual, input.String())
+			})
+		})
+
+		Convey("When DataRows are imported", func() {
+			rows := new(genericRows)
+			data1 := genericData
+			data2 := genericData
+			data1.symbol = "AA1"
+			data2.symbol = "AA2"
+			rows.Append(data1)
+			rows.Append(data2)
+
+			pseDb.Import(rows)
+
+			Convey("The data should be saved", func() {
+				result1, _ := pseDb.GetAllDataFor("AA1")
+				result2, _ := pseDb.GetAllDataFor("AA2")
+				So(len(result1), ShouldEqual, 1)
+				So(result1[0].String(), ShouldEqual, data1.String())
+				So(result2[0].String(), ShouldEqual, data2.String())
 			})
 		})
 	})

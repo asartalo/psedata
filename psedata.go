@@ -18,12 +18,35 @@ type DataRow struct {
 	vol    int
 }
 
+type dRow struct {
+	symbol string
+	date   time.Time
+	open   float64
+	high   float64
+	low    float64
+	close  float64
+	vol    int
+}
+
 // String returns a string representation of the DataRow
 func (data *DataRow) String() string {
 	return fmt.Sprintf(
 		"%s,%s,%f,%f,%f,%f,%d", data.symbol, data.date.Format("2006-01-02"),
 		data.open, data.high, data.low, data.close, data.vol,
 	)
+}
+
+type DataRows interface {
+	Next() *DataRow
+}
+
+// NewDataRow creates a new DataRow from parameters
+func NewDataRow(symbol string, date time.Time, open float64, high float64, low float64, close float64, vol int) DataRow {
+	return DataRow{symbol, date, open, high, low, close, vol}
+}
+
+func NewDataRowS(d dRow) DataRow {
+	return DataRow{d.symbol, d.date, d.open, d.high, d.low, d.close, d.vol}
 }
 
 // ConnectionInfo represents a database connection information and credentials.
@@ -57,8 +80,9 @@ func (info ConnectionInfo) connectStringGeneral(dbname string) string {
 type PseDb interface {
 	DbStore() *sql.DB
 	Close() error
-	NewData(data DataRow) error
-	GetAllDataFor(symbol string) ([]DataRow, error)
+	NewData(DataRow) error
+	GetAllDataFor(string) ([]DataRow, error)
+	Import(DataRows) error
 }
 
 type pseDbS struct {
@@ -99,6 +123,20 @@ func (pseDb *pseDbS) NewData(data DataRow) error {
 	_, err = stmt.Exec(data.symbol, data.date, data.open, data.high, data.low, data.close, data.vol)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (pseDb *pseDbS) Import(rows DataRows) error {
+	for {
+		data := rows.Next()
+		if data == nil {
+			break
+		}
+		err := pseDb.NewData(*data)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
