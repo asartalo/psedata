@@ -5,19 +5,8 @@ import (
 	pse "github.com/asartalo/psedata"
 	"io"
 	"strconv"
-	"strings"
 	"time"
 )
-
-type rawData struct {
-	symbol string
-	date   time.Time
-	open   float64
-	high   float64
-	low    float64
-	close  float64
-	vol    int
-}
 
 type importedRecords struct {
 	csvReader *ecsv.Reader
@@ -40,9 +29,6 @@ func (recs *importedRecords) Next() (*pse.DailyRecord, error) {
 		row, err := recs.csvReader.Read()
 		if err != nil {
 			return nil, err
-		}
-		if strings.Index(row[0], "<") > -1 {
-			continue
 		}
 
 		date, err := time.Parse("20060102", row[1])
@@ -79,7 +65,6 @@ func (csv *csv) ImportHistoricalRecords(r io.Reader) (pse.DailyRecords, error) {
 	records := new(importedRecords)
 	records.csvReader = ecsv.NewReader(r)
 	records.csvReader.Comment = '<'
-	// records.csvReader.FieldsPerRecord = 7
 	return records, nil
 }
 
