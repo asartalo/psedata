@@ -18,10 +18,10 @@ var sharedConnInfo = ConnectionInfo{
 
 type genericRows struct {
 	pos        int
-	collection []DataRow
+	collection []DailyRecord
 }
 
-func (rows *genericRows) Next() *DataRow {
+func (rows *genericRows) Next() *DailyRecord {
 	last := (len(rows.collection) - 1)
 	defer func() {
 		rows.pos++
@@ -34,7 +34,7 @@ func (rows *genericRows) Next() *DataRow {
 
 }
 
-func (rows *genericRows) Append(data DataRow) {
+func (rows *genericRows) Append(data DailyRecord) {
 	rows.collection = append(rows.collection, data)
 }
 
@@ -63,10 +63,10 @@ var rawData = struct {
 	close:  11.0,
 	vol:    100,
 }
-var genericData = NewDataRowS(rawData)
+var genericData = NewDailyRecordS(rawData)
 
-func TestDataRow(t *testing.T) {
-	Convey("Given a DataRow", t, func() {
+func TestDailyRecord(t *testing.T) {
+	Convey("Given a DailyRecord", t, func() {
 
 		Convey("When exported as string", func() {
 			str := genericData.String()
@@ -76,6 +76,19 @@ func TestDataRow(t *testing.T) {
 				So(str, ShouldEqual, expected)
 			})
 		})
+
+		Convey("When values are retrieved", func() {
+			Convey("Values should match those on initialization", func() {
+				So(genericData.Symbol(), ShouldEqual, "AAA")
+				So(genericData.Date().Equal(date), ShouldBeTrue)
+				So(genericData.Open(), ShouldEqual, 10.0)
+				So(genericData.High(), ShouldEqual, 12.0)
+				So(genericData.Low(), ShouldEqual, 9.1)
+				So(genericData.Close(), ShouldEqual, 11.0)
+				So(genericData.Volume(), ShouldEqual, 100)
+			})
+		})
+
 	})
 }
 
@@ -169,7 +182,7 @@ func TestPseDb(t *testing.T) {
 					`SELECT symbol, date, open, high, low, close, vol FROM day_trades limit 1`,
 				).Scan(&symbol, &date2, &open, &high, &low, &close, &vol)
 				So(err, ShouldBeNil)
-				So(symbol, ShouldEqual, input.symbol)
+				So(symbol, ShouldEqual, input.Symbol())
 				So(date2.Format(dFmt), ShouldEqual, date.Format(dFmt))
 				So(open, ShouldEqual, 10.0)
 				So(high, ShouldEqual, 12.0)
@@ -179,34 +192,51 @@ func TestPseDb(t *testing.T) {
 			})
 
 			Convey("The data should be retrievable", func() {
-				result, err := pseDb.GetAllDataFor("AAA")
+				result, err := pseDb.AllDailyRecordFor("AAA")
 				So(err, ShouldBeNil)
 				So(len(result), ShouldEqual, 1)
 				saved := result[0]
 				// For some reason, Dates are not equal when using ShouldEqual
-				So(saved.date.Equal(input.date), ShouldBeTrue)
+				So(saved.Date().Equal(input.date), ShouldBeTrue)
 				So(saved.String(), ShouldEqual, input.String())
 			})
 		})
 
-		Convey("When DataRows are imported", func() {
+		Convey("When DailyRecord are imported", func() {
+			// Prepare Data
+			d := time.Now()
+			rawData1 := rawData
+			rawData2 := rawData
+			rawData1.symbol = "AA1"
+			rawData2.symbol = "AA2"
+			rawData3 := rawData2
+			rawData3.date = d
+
+			data1 := NewDailyRecordS(rawData1)
+			data2 := NewDailyRecordS(rawData2)
+			data3 := NewDailyRecordS(rawData3)
+
 			rows := new(genericRows)
-			data1 := genericData
-			data2 := genericData
-			data1.symbol = "AA1"
-			data2.symbol = "AA2"
 			rows.Append(data1)
 			rows.Append(data2)
+			rows.Append(data3)
 
-			pseDb.Import(rows)
+			pseDb.ImportDaylies(rows)
 
 			Convey("The data should be saved", func() {
-				result1, _ := pseDb.GetAllDataFor("AA1")
-				result2, _ := pseDb.GetAllDataFor("AA2")
+				result1, _ := pseDb.AllDailyRecordFor("AA1")
+				result2, _ := pseDb.AllDailyRecordFor("AA2")
 				So(len(result1), ShouldEqual, 1)
 				So(result1[0].String(), ShouldEqual, data1.String())
 				So(result2[0].String(), ShouldEqual, data2.String())
+				So(result2[1].String(), ShouldEqual, data3.String())
 			})
+
+			Convey("The data can be obtained by date", func() {
+				saved, _ := pseDb.DailyRecordFor("AA2", d)
+				So(saved.String(), ShouldEqual, data3.String())
+			})
+
 		})
 	})
 }

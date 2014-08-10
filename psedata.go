@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-type DataRow struct {
+type DailyRecord struct {
 	symbol string
 	date   time.Time
 	open   float64
@@ -28,25 +28,60 @@ type dRow struct {
 	vol    int
 }
 
-// String returns a string representation of the DataRow
-func (data *DataRow) String() string {
+// String returns a string representation of the DailyRecord
+func (data *DailyRecord) String() string {
 	return fmt.Sprintf(
-		"%s,%s,%f,%f,%f,%f,%d", data.symbol, data.date.Format("2006-01-02"),
-		data.open, data.high, data.low, data.close, data.vol,
+		"%s,%s,%f,%f,%f,%f,%d", data.Symbol(), data.Date().Format("2006-01-02"),
+		data.Open(), data.High(), data.Low(), data.Close(), data.Volume(),
 	)
 }
 
-type DataRows interface {
-	Next() *DataRow
+// Symbol returns the symbol for the data row
+func (data *DailyRecord) Symbol() string {
+	return data.symbol
 }
 
-// NewDataRow creates a new DataRow from parameters
-func NewDataRow(symbol string, date time.Time, open float64, high float64, low float64, close float64, vol int) DataRow {
-	return DataRow{symbol, date, open, high, low, close, vol}
+// Date returns the date for the data row
+func (data *DailyRecord) Date() time.Time {
+	return data.date
 }
 
-func NewDataRowS(d dRow) DataRow {
-	return DataRow{d.symbol, d.date, d.open, d.high, d.low, d.close, d.vol}
+// Open returns the opening price for that date
+func (data *DailyRecord) Open() float64 {
+	return data.open
+}
+
+// High returns the highest price for that date
+func (data *DailyRecord) High() float64 {
+	return data.high
+}
+
+// Low returns the lowest price for that date
+func (data *DailyRecord) Low() float64 {
+	return data.low
+}
+
+// Close returns the closing price for that date
+func (data *DailyRecord) Close() float64 {
+	return data.close
+}
+
+// Volume returns the trading volume for that date
+func (data *DailyRecord) Volume() int {
+	return data.vol
+}
+
+type DailyRecords interface {
+	Next() *DailyRecord
+}
+
+// NewDailyRecord creates a new DailyRecord from parameters
+func NewDailyRecord(symbol string, date time.Time, open float64, high float64, low float64, close float64, vol int) DailyRecord {
+	return DailyRecord{symbol, date, open, high, low, close, vol}
+}
+
+func NewDailyRecordS(d dRow) DailyRecord {
+	return DailyRecord{d.symbol, d.date, d.open, d.high, d.low, d.close, d.vol}
 }
 
 // ConnectionInfo represents a database connection information and credentials.
@@ -80,15 +115,17 @@ func (info ConnectionInfo) connectStringGeneral(dbname string) string {
 type PseDb interface {
 	DbStore() *sql.DB
 	Close() error
-	NewData(DataRow) error
-	GetAllDataFor(string) ([]DataRow, error)
-	Import(DataRows) error
+	NewData(DailyRecord) error
+	DailyRecordFor(string, time.Time) (DailyRecord, error)
+	AllDailyRecordFor(string) ([]DailyRecord, error)
+	ImportDaylies(DailyRecords) error
 }
 
 type pseDbS struct {
 	info           ConnectionInfo
 	db             *sql.DB
 	insertDataStmt *sql.Stmt
+	selectDailyStr string
 }
 
 func (pseDb pseDbS) Close() error {
@@ -114,7 +151,7 @@ func (pseDb *pseDbS) createTables() (err error) {
 	return err
 }
 
-func (pseDb *pseDbS) NewData(data DataRow) error {
+func (pseDb *pseDbS) NewData(data DailyRecord) error {
 	stmt, err := pseDb.insertStatement()
 	if err != nil {
 		return err
@@ -127,7 +164,7 @@ func (pseDb *pseDbS) NewData(data DataRow) error {
 	return nil
 }
 
-func (pseDb *pseDbS) Import(rows DataRows) error {
+func (pseDb *pseDbS) ImportDaylies(rows DailyRecords) error {
 	for {
 		data := rows.Next()
 		if data == nil {
@@ -141,19 +178,22 @@ func (pseDb *pseDbS) Import(rows DataRows) error {
 	return nil
 }
 
-func (pseDb *pseDbS) GetAllDataFor(symbol string) ([]DataRow, error) {
-	var all []DataRow
-	d := pseDb.DbStore()
-	rows, err := d.Query(
-		`SELECT symbol, date, open, high, low, close, vol FROM day_trades WHERE symbol = $1`,
-		symbol,
-	)
+func (pseDb *pseDbS) selectDailyString() string {
+	if pseDb.selectDailyStr == "" {
+		pseDb.selectDailyStr = `SELECT symbol, date, open, high, low, close, vol FROM day_trades WHERE `
+	}
+	return pseDb.selectDailyStr
+}
+
+func (pseDb *pseDbS) AllDailyRecordFor(symbol string) ([]DailyRecord, error) {
+	var all []DailyRecord
+	rows, err := pseDb.DbStore().Query(pseDb.selectDailyString()+`symbol = $1`, symbol)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
-		data := new(DataRow)
+		data := new(DailyRecord)
 		if err := rows.Scan(&data.symbol, &data.date, &data.open, &data.high, &data.low, &data.close, &data.vol); err != nil {
 			return nil, err
 		}
@@ -163,6 +203,17 @@ func (pseDb *pseDbS) GetAllDataFor(symbol string) ([]DataRow, error) {
 		return nil, err
 	}
 	return all, nil
+}
+
+func (pseDb *pseDbS) DailyRecordFor(symbol string, date time.Time) (DailyRecord, error) {
+	data := new(DailyRecord)
+	err := pseDb.DbStore().QueryRow(
+		pseDb.selectDailyString()+`symbol = $1 AND date = $2`, symbol, date,
+	).Scan(&data.symbol, &data.date, &data.open, &data.high, &data.low, &data.close, &data.vol)
+	if err != nil {
+		return *data, err
+	}
+	return *data, nil
 }
 
 func (pseDb *pseDbS) insertStatement() (*sql.Stmt, error) {
