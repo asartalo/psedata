@@ -80,7 +80,7 @@ func (data *DailyRecord) importData(scanner scanner) error {
 }
 
 type DailyRecords interface {
-	Next() *DailyRecord
+	Next() (*DailyRecord, error)
 }
 
 // NewDailyRecord creates a new DailyRecord from parameters
@@ -174,11 +174,14 @@ func (pseDb *pseDbS) NewData(data DailyRecord) error {
 
 func (pseDb *pseDbS) ImportDaylies(rows DailyRecords) error {
 	for {
-		data := rows.Next()
+		data, err := rows.Next()
 		if data == nil {
 			break
 		}
-		err := pseDb.NewData(*data)
+		if err != nil {
+			return err
+		}
+		err = pseDb.NewData(*data)
 		if err != nil {
 			return err
 		}

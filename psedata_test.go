@@ -21,16 +21,16 @@ type genericRows struct {
 	collection []DailyRecord
 }
 
-func (rows *genericRows) Next() *DailyRecord {
+func (rows *genericRows) Next() (*DailyRecord, error) {
 	last := (len(rows.collection) - 1)
 	defer func() {
 		rows.pos++
 	}()
 	if rows.pos > last {
-		return nil
+		return nil, nil
 	}
 
-	return &rows.collection[rows.pos]
+	return &rows.collection[rows.pos], nil
 
 }
 
@@ -202,7 +202,7 @@ func TestPseDb(t *testing.T) {
 			})
 		})
 
-		Convey("When DailyRecord are imported", func() {
+		Convey("When DailyRecords are imported", func() {
 			// Prepare Data
 			d := time.Now()
 			rawData1 := rawData
