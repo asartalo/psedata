@@ -71,6 +71,14 @@ func (data *DailyRecord) Volume() int {
 	return data.vol
 }
 
+type scanner interface {
+	Scan(...interface{}) error
+}
+
+func (data *DailyRecord) importData(scanner scanner) error {
+	return scanner.Scan(&data.symbol, &data.date, &data.open, &data.high, &data.low, &data.close, &data.vol)
+}
+
 type DailyRecords interface {
 	Next() *DailyRecord
 }
@@ -194,7 +202,7 @@ func (pseDb *pseDbS) AllDailyRecordFor(symbol string) ([]DailyRecord, error) {
 	defer rows.Close()
 	for rows.Next() {
 		data := new(DailyRecord)
-		if err := rows.Scan(&data.symbol, &data.date, &data.open, &data.high, &data.low, &data.close, &data.vol); err != nil {
+		if err := data.importData(rows); err != nil {
 			return nil, err
 		}
 		all = append(all, *data)
@@ -207,9 +215,9 @@ func (pseDb *pseDbS) AllDailyRecordFor(symbol string) ([]DailyRecord, error) {
 
 func (pseDb *pseDbS) DailyRecordFor(symbol string, date time.Time) (DailyRecord, error) {
 	data := new(DailyRecord)
-	err := pseDb.DbStore().QueryRow(
-		pseDb.selectDailyString()+`symbol = $1 AND date = $2`, symbol, date,
-	).Scan(&data.symbol, &data.date, &data.open, &data.high, &data.low, &data.close, &data.vol)
+	err := data.importData(
+		pseDb.DbStore().QueryRow(pseDb.selectDailyString()+`symbol = $1 AND date = $2`, symbol, date),
+	)
 	if err != nil {
 		return *data, err
 	}
