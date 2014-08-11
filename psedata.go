@@ -148,13 +148,16 @@ func (pseDb *pseDbS) createTables() (err error) {
 	}
 	_, err = pseDb.db.Exec(
 		`CREATE TABLE day_trades (` +
-			`symbol varchar(5) NOT NULL, ` +
+			`symbol varchar(12) NOT NULL, ` +
 			`date   date NOT NULL, ` +
 			`open   numeric(14, 5) NOT NULL, ` +
 			`high   numeric(14, 5) NOT NULL, ` +
 			`low    numeric(14, 5) NOT NULL, ` +
 			`close  numeric(14, 5) NOT NULL, ` +
-			`vol    int NOT NULL)`,
+			`vol    int NOT NULL); ` +
+			`CREATE INDEX symbol_idx ON day_trades (symbol); ` +
+			`CREATE INDEX date_idx ON day_trades (date); ` +
+			`CREATE UNIQUE INDEX symbol_date_idx ON day_trades (symbol, date);`,
 	)
 	return err
 }

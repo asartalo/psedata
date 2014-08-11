@@ -4,6 +4,7 @@ import (
 	ecsv "encoding/csv"
 	pse "github.com/asartalo/psedata"
 	"io"
+	"regexp"
 	"strconv"
 	"time"
 )
@@ -31,7 +32,17 @@ func (recs *importedRecords) Next() (*pse.DailyRecord, error) {
 			return nil, err
 		}
 
-		date, err := time.Parse("20060102", row[1])
+		match, err := regexp.MatchString(`\d{2}\/\d{2}/\d{4}`, row[1])
+		if err != nil {
+			return nil, err
+		}
+
+		var date time.Time
+		if match {
+			date, err = time.Parse("01/02/2006", row[1])
+		} else {
+			date, err = time.Parse("20060102", row[1])
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -56,12 +67,12 @@ func (recs *importedRecords) Next() (*pse.DailyRecord, error) {
 }
 
 type Csv interface {
-	ImportHistoricalRecords(io.Reader) (pse.DailyRecords, error)
+	ImportDailyRecords(io.Reader) (pse.DailyRecords, error)
 }
 
 type csv struct{}
 
-func (csv *csv) ImportHistoricalRecords(r io.Reader) (pse.DailyRecords, error) {
+func (csv *csv) ImportDailyRecords(r io.Reader) (pse.DailyRecords, error) {
 	records := new(importedRecords)
 	records.csvReader = ecsv.NewReader(r)
 	records.csvReader.Comment = '<'
