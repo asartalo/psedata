@@ -1,8 +1,8 @@
 package psedata
 
 import (
-	"database/sql"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	// Used internally by database/sql for db driver
 	_ "github.com/asartalo/pq"
 	"time"
@@ -101,13 +101,13 @@ type ConnectionInfo struct {
 	Port     int
 }
 
-// ConnectStringTemplateDb returns a connection string to be used with sql.Open() that connects to tmeplate1 db which is a default db.
+// ConnectStringTemplateDb returns a connection string to be used with sqlx.Open() that connects to tmeplate1 db which is a default db.
 // Useful for creating databases, or inspecting a db when you're not sure if it exists.
 func (info ConnectionInfo) ConnectStringTemplateDb() string {
 	return info.connectStringGeneral("template1")
 }
 
-// ConnectString returns a connecction string to be used with sql.Open()
+// ConnectString returns a connecction string to be used with sqlx.Open()
 func (info ConnectionInfo) ConnectString() string {
 	return info.connectStringGeneral(info.DbName)
 }
@@ -121,7 +121,7 @@ func (info ConnectionInfo) connectStringGeneral(dbname string) string {
 
 // The PseDb interface for CRUD operations and useful shortcuts for retrieving day trades data.
 type PseDb interface {
-	DbStore() *sql.DB
+	DbStore() *sqlx.DB
 	Close() error
 	NewData(DailyRecord) error
 	DailyRecordFor(string, time.Time) (DailyRecord, error)
@@ -131,8 +131,8 @@ type PseDb interface {
 
 type pseDbS struct {
 	info           ConnectionInfo
-	db             *sql.DB
-	insertDataStmt *sql.Stmt
+	db             *sqlx.DB
+	insertDataStmt *sqlx.Stmt
 	selectDailyStr string
 }
 
@@ -141,7 +141,7 @@ func (pseDb pseDbS) Close() error {
 }
 
 func (pseDb *pseDbS) createTables() (err error) {
-	db, err := sql.Open("postgres", pseDb.info.ConnectString())
+	db, err := sqlx.Open("postgres", pseDb.info.ConnectString())
 	pseDb.db = db
 	if err != nil {
 		return err
@@ -230,10 +230,10 @@ func (pseDb *pseDbS) DailyRecordFor(symbol string, date time.Time) (DailyRecord,
 	return *data, nil
 }
 
-func (pseDb *pseDbS) insertStatement() (*sql.Stmt, error) {
+func (pseDb *pseDbS) insertStatement() (*sqlx.Stmt, error) {
 	if pseDb.insertDataStmt == nil {
 		var err error
-		pseDb.insertDataStmt, err = pseDb.DbStore().Prepare(
+		pseDb.insertDataStmt, err = pseDb.DbStore().Preparex(
 			`INSERT INTO day_trades (symbol, date, open, high, low, close, vol) ` +
 				`VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		)
@@ -245,13 +245,13 @@ func (pseDb *pseDbS) insertStatement() (*sql.Stmt, error) {
 }
 
 // DbStore returns the underlying database object
-func (pseDb *pseDbS) DbStore() *sql.DB {
+func (pseDb *pseDbS) DbStore() *sqlx.DB {
 	return pseDb.db
 }
 
 // CreateDb creates the underlying PostGreSQL datastore.
 func CreateDb(info ConnectionInfo) (PseDb, error) {
-	db, err := sql.Open("postgres", info.ConnectStringTemplateDb())
+	db, err := sqlx.Open("postgres", info.ConnectStringTemplateDb())
 	defer db.Close()
 	pseDb := new(pseDbS)
 	pseDb.info = info

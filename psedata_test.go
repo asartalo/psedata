@@ -31,7 +31,6 @@ func (rows *genericRows) Next() (*DailyRecord, error) {
 	}
 
 	return &rows.collection[rows.pos], nil
-
 }
 
 func (rows *genericRows) Append(data DailyRecord) {
