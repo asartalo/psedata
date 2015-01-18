@@ -1,19 +1,19 @@
 package psedata
 
 import (
-	"database/sql"
 	_ "github.com/asartalo/pq"
+	"github.com/jmoiron/sqlx"
 	. "github.com/smartystreets/goconvey/convey"
 	"testing"
 	"time"
 )
 
 var sharedConnInfo = ConnectionInfo{
-	dbname:   "pse_data_pg_test",
-	user:     "pse_test",
-	password: "pse_test",
-	host:     "localhost",
-	port:     5432,
+	DbName:   "pse_data_pg_test",
+	User:     "pse_test",
+	Password: "pse_test",
+	Host:     "localhost",
+	Port:     5432,
 }
 
 type genericRows struct {
@@ -117,11 +117,11 @@ func TestConnectionInfo(t *testing.T) {
 }
 
 func dropTestDb(t *testing.T) {
-	db, err := sql.Open("postgres", "user=pse_test password=pse_test dbname=postgres host=localhost port=5432 sslmode=disable")
+	db, err := sqlx.Open("postgres", "user=pse_test password=pse_test dbname=postgres host=localhost port=5432 sslmode=disable")
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
-	_, err = db.Query("DROP DATABASE IF EXISTS " + sharedConnInfo.dbname)
+	_, err = db.Query("DROP DATABASE IF EXISTS " + sharedConnInfo.DbName)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -144,7 +144,7 @@ func TestPseDb(t *testing.T) {
 
 			Convey("The database should exist", func() {
 				var table string
-				db, _ := sql.Open("postgres", "user=pse_test password=pse_test dbname=postgres host=localhost port=5432 sslmode=disable")
+				db, _ := sqlx.Open("postgres", "user=pse_test password=pse_test dbname=postgres host=localhost port=5432 sslmode=disable")
 				defer db.Close()
 				err := db.QueryRow(`SELECT datname FROM pg_catalog.pg_database WHERE lower(datname) = lower('pse_data_pg_test')`).Scan(&table)
 				So(err, ShouldBeNil)

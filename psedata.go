@@ -94,11 +94,11 @@ func NewDailyRecordS(d dRow) DailyRecord {
 
 // ConnectionInfo represents a database connection information and credentials.
 type ConnectionInfo struct {
-	dbname   string
-	user     string
-	password string
-	host     string
-	port     int
+	DbName   string
+	User     string
+	Password string
+	Host     string
+	Port     int
 }
 
 // ConnectStringTemplateDb returns a connection string to be used with sql.Open() that connects to tmeplate1 db which is a default db.
@@ -109,13 +109,13 @@ func (info ConnectionInfo) ConnectStringTemplateDb() string {
 
 // ConnectString returns a connecction string to be used with sql.Open()
 func (info ConnectionInfo) ConnectString() string {
-	return info.connectStringGeneral(info.dbname)
+	return info.connectStringGeneral(info.DbName)
 }
 
 func (info ConnectionInfo) connectStringGeneral(dbname string) string {
 	return fmt.Sprintf(
 		"user=%s password=%s dbname=%s host=%s port=%d sslmode=disable",
-		info.user, info.password, dbname, info.host, info.port,
+		info.User, info.Password, dbname, info.Host, info.Port,
 	)
 }
 
@@ -260,13 +260,13 @@ func CreateDb(info ConnectionInfo) (PseDb, error) {
 		return pseDb, err
 	}
 
-	_, err = db.Exec(`CREATE DATABASE ` + info.dbname)
+	_, err = db.Exec(`CREATE DATABASE ` + info.DbName)
 
 	if err != nil {
 		return pseDb, err
 	}
 
-	_, err = db.Exec(`ALTER DATABASE ` + info.dbname + ` SET TIME ZONE 'Asia/Manila'`)
+	_, err = db.Exec(`ALTER DATABASE ` + info.DbName + ` SET TIME ZONE 'Asia/Manila'`)
 
 	if err != nil {
 		return pseDb, err
